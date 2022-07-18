@@ -133,3 +133,6 @@ class BookdetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'status']
 
 
+        
+
+

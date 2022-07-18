@@ -34,22 +34,13 @@ def errors(b):
             error[i[:b]] = j
     return error
 
-@decorators.api_view(["GET"])
-@decorators.permission_classes([permissions.AllowAny])
-def home(request):
-    if request.method == 'GET':
-        user_objs = User.objects.get(id=1)  
-        register_user = Userserializer(user_objs)
-        return Response({'message': 'Success', 'result': register_user.data}, status=status.HTTP_200_OK)
-
-
 
 @decorators.api_view(["POST"])
 @decorators.permission_classes([permissions.AllowAny])
 def signup(request):
     register_user = UserRegisterSerializer(data=request.data)
     if register_user.is_valid():
-        jj = register_user.save()
+        register_user.save()
     return Response({'message': 'Success', 'result': register_user.data}, status=status.HTTP_200_OK)
 
 
@@ -64,9 +55,11 @@ def memberlist(request):
         gk = decoded['user_id']
     except:
         return Response({"result": {"errors": "Unauthenticated"}}, status=status.HTTP_401_UNAUTHORIZED)
-    user_objs = User.objects.filter(user_role='MEMBER')  
-    register_user = Userserializer(user_objs, many=True)
-    return Response({'message': 'Success', 'result': register_user.data}, status=status.HTTP_200_OK)
+    if User.objects.filter(id=gk, user_role="LIBRARIAN"):
+        user_objs = User.objects.filter(user_role='MEMBER')  
+        register_user = Userserializer(user_objs, many=True)
+        return Response({'message': 'Success', 'result': register_user.data}, status=status.HTTP_200_OK)
+    return Response({"message": "data invalid"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @decorators.api_view(["POST"])
@@ -79,14 +72,15 @@ def addmember(request):
         gk = decoded['user_id']
     except:
         return Response({"result": {"errors": "Unauthenticated"}}, status=status.HTTP_401_UNAUTHORIZED)
-    serializer = MemberRegisterSerializer(data=request.data)
-    if serializer.is_valid():
-        obj = serializer.save()
-        instance = Userserializer(obj)
-        return Response({'message': 'Success', 'result': instance.data}, status=status.HTTP_200_OK)
-    error_list = errors(serializer.errors)
-    return Response({"message": "data invalid", "result": {"errors": error_list}}, status=status.HTTP_400_BAD_REQUEST)
-
+    if User.objects.filter(id=gk, user_role="LIBRARIAN"):
+        serializer = MemberRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            obj = serializer.save()
+            instance = Userserializer(obj)
+            return Response({'message': 'Success', 'result': instance.data}, status=status.HTTP_200_OK)
+        error_list = errors(serializer.errors)
+        return Response({"message": "data invalid", "result": {"errors": error_list}}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"message": "data invalid"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @decorators.api_view(["PATCH"])
@@ -153,23 +147,6 @@ def removemember(request):
             return Response({'message': 'Success', 'result': {'data':'Remove Successfully'}}, status=status.HTTP_200_OK)
     except:
         return Response({"message": "Invalid Data Request"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -291,6 +268,47 @@ def borrowbook(request):
 
 
 
+
+@decorators.api_view(["POST"])
+@decorators.permission_classes([permissions.AllowAny])
+def returnbook(request):
+    kl = request.META['HTTP_AUTHORIZATION']  # token
+    user = token(kl)  # id
+    try:
+        decoded = jwt.decode(user, settings.SECRET_KEY, ['HS256'])
+        gk = decoded['user_id']
+    except:
+        return Response({"result": {"errors": "Unauthenticated"}}, status=status.HTTP_401_UNAUTHORIZED)
+    uobj = User.objects.get(id=gk)
+    if uobj.user_role=="MEMBER":
+        obj = Borrowbook.objects.get(id=request.data['borrow_id'])
+        if obj.status == 'BORROWED':   
+            obj.status = 'RETURNED'
+            obj.book_id.status = 'AVAILABLE'
+            obj.save()
+            return Response({'message': 'Success', 'result': {'status':'Return Successfully', 'username':uobj.username, 'book_name':obj.book_id.name, 'book_status':obj.book_id.status}}, status=status.HTTP_200_OK)
+        else:
+            return Response({'message': 'Success', 'result': {'status':'Book Not Available'}}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"message": "Invalid Request"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+@decorators.api_view(["DELETE"])
+@decorators.permission_classes([permissions.AllowAny])
+def removeaccount(request):
+    kl = request.META['HTTP_AUTHORIZATION']  # token
+    user = token(kl)  # id
+    try:
+        decoded = jwt.decode(user, settings.SECRET_KEY, ['HS256'])
+        gk = decoded['user_id']
+    except:
+        return Response({"result": {"errors": "Unauthenticated"}}, status=status.HTTP_401_UNAUTHORIZED)
+    uobj = User.objects.get(id=gk)
+    if uobj.user_role=="MEMBER":
+        uobj.delete()
+        return Response({'message': 'Success', 'result': {'status':'Remove Account Successfully'}}, status=status.HTTP_200_OK)
+    return Response({"message": "Invalid Request"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 
